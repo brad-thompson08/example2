@@ -1,0 +1,71 @@
+To Whom It May Concern,
+
+I attemtped to "downgrade" PiServer from 3.1.2->2.36.0, but the 2.36.0 server would would
+not start so reinstalled 3.1.2 which trashed my Neo4j database forcing me to reinstall
+the iPLM Tutorial database. Since I leverage separate machines for iPLM and Helix a
+three step approach was required:
+
+1. Re-Install the Pi Database on bthompson-c7.8-iplm
+	as root:
+        service piserver stop
+	cd /usr/share/mdx/products/piextras/install_scripts/server
+        ./import_pi_tutorial.bash -d P4
+        systemctl stop p4d   (Stop the p4d service started by the script above)
+
+        NOTE: This script also creates a p4d server at this path:
+       		/usr/share/mdx/repos/p4
+
+              A Perforce Checkpoint of this database and Perforce archive files
+              have been copied to this location on bthompson-c7.8-helix:
+			/data/perforce/CheckPoint/
+			/data/perforce/Backup/
+	      This checkpoint and tar of the Archive files can be used to reseed the
+              Perforce database to align with the PiServer (Neo4j) database.
+
+2. Re-Install the Perforce Database on bthompson-c7.8-helix
+	As root:
+         	systemctl stop p4d
+  	As perforce:
+        	cd /data/perforce/db
+		mkdir Backup.<date>
+                cd Backup.<date>
+                mv ../db.* .
+             	mv ../journal .
+ 		mv ../log .
+                cd ..
+		p4d -r . -jr -z /data/perforce/CheckPoint/p4d_backup_bthompson-c7.8-iplm.perforce.com.ckp.1.gz
+                mv mdx_test mdx_test.SAV
+		tar xvf ../../Backup/mdx_test.tar   	
+	As root:
+         	systemctl start p4d	
+	As perforce:
+		p4 verify -qz //mdx_test/...
+
+3. Fix the Modified WS STATUS indicator and the Conflict with IP tutorial.gen_dig 
+
+   "pi ws st -v" gives a "Modified" WS STATUS for some of the Tutorial IP's which is "by design", but
+    annoying none the less. The issues is related to the tutorial.gen_dig shows a workspace conflict.
+    The "pi ip tree" command is a good way to view the enitire heiarchy to look for the offending Version.
+
+	pi ip tree tutorial.tutorial | grep tutorial.gen_dig
+	(c1) The IP 'tutorial.gen_dig' occurs with the following versions: LATEST.TRUNK [@2], 1.TRUNK.
+     	
+    The various IP's in the Tutorial design reference TWO different Versions of the tutorial.gen_dig
+    IP, so when the workspace is created, one version "wins" over the other. Hence, the conflict.
+
+    RESOLUTION:
+        	The tutorial.tutorial must be changed to reference the SAME Verions of tutorial.gen_dig
+                throughout the IP heirarchy:
+ 		pi ip edit tutorial.cpu
+		<Change tutorial.gen_dig@LATEST.TRUNK to tutorial.gen_dig@1.TRUNK>
+		pi ip edit tutorial.digital_top
+		pi ip edit tutorial.tutorial
+    NOTE: This procedue may not include all the steps as it took me awhile to get a clean "pi ip load"
+          (In fact, I ended up removing the tutorial.cpu IP altogehter befor the "pi ws st -v" command
+           gave a clean report)
+
+Brad Thompson
+8/4/2021
+
+NOTE: Disccused downgrade of PiServer with Rien and this is not recommended. Downgrade
+      of PiCache is perfectly legit
