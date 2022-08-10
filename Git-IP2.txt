@@ -1,4 +1,4 @@
-Notes for Git IP example2
+Notes for Git IP example2 for Divon
 
 Brad Thompson
 8/10/2022
